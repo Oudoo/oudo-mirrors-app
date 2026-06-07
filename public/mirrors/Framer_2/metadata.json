@@ -1,0 +1,19 @@
+{
+  "originalUrl": "https://blissful-transparency-737230.framer.app/",
+  "isDeepCrawl": true,
+  "subPagesCount": 5,
+  "assetsCount": 43,
+  "timestamp": "2026-06-07T08:46:08.492Z",
+  "purgeHistory": [
+    {
+      "timestamp": "2026-06-07T09:26:49.022Z",
+      "report": "Removed 1 Framer badge containers, 0 Framer tracking/promo links, and 0 lingering badge classes. Reason: Automatically cleaned up intrusive third-party watermarks to preserve pure site representation."
+    }
+  ],
+  "repairHistory": [
+    {
+      "timestamp": "2026-06-07T13:46:49.834Z",
+      "report": "Ultimate Repair: Unhashed 43 assets. Crawled and auto-downloaded 0 missing dynamic dependencies from the live server. Scanned 1 JS chunk(s). Patched CORS paths in 0 file(s)."
+    }
+  ]
+}

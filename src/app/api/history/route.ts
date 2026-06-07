@@ -17,21 +17,32 @@ export async function GET() {
       .map(dirent => {
         const siteId = dirent.name;
         // Basic stats, check if index.html exists
-        const indexPath = path.join(mirrorsDir, siteId, 'index.html');
-        let size = 0;
-        let hasIndex = fs.existsSync(indexPath);
+        const projectDir = path.join(mirrorsDir, siteId);
+        const indexPath = path.join(projectDir, 'index.html');
+        const metaPath = path.join(projectDir, 'metadata.json');
         
+        let hasIndex = fs.existsSync(indexPath);
+        let metadata = null;
+        
+        if (fs.existsSync(metaPath)) {
+          try {
+            metadata = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+          } catch (e) {
+            console.error('Failed to parse metadata for', siteId);
+          }
+        }
+
+        let createdAt = new Date();
         try {
-          const stat = fs.statSync(path.join(mirrorsDir, siteId));
-          // We could recursively calculate size but for now just returning existence
-          size = stat.size;
+          createdAt = fs.statSync(projectDir).birthtime;
         } catch (e) {}
 
         return {
           siteId,
           hasIndex,
           previewUrl: `/mirrors/${siteId}/index.html`,
-          createdAt: fs.statSync(path.join(mirrorsDir, siteId)).birthtime
+          createdAt,
+          metadata
         };
       })
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

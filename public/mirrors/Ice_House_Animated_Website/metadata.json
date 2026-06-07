@@ -1,0 +1,27 @@
+{
+  "originalUrl": "https://www.igloo.inc/",
+  "isDeepCrawl": true,
+  "subPagesCount": 0,
+  "assetsCount": 2,
+  "timestamp": "2026-06-07T09:23:49.780Z",
+  "purgeHistory": [
+    {
+      "timestamp": "2026-06-07T09:26:38.785Z",
+      "report": "Removed 0 Framer badge containers, 0 Framer tracking/promo links, and 0 lingering badge classes. Reason: Automatically cleaned up intrusive third-party watermarks to preserve pure site representation."
+    }
+  ],
+  "repairHistory": [
+    {
+      "timestamp": "2026-06-07T10:23:30.524Z",
+      "report": "Scanned 2 JS chunk(s). Patched Web Worker relative paths in 1 file(s). Patched CORS/Absolute origin paths in 2 file(s) to point to https://www.igloo.inc/. Reason: Fixed deployment errors, missing assets, and unhandled dynamic chunks."
+    },
+    {
+      "timestamp": "2026-06-07T12:43:06.212Z",
+      "report": "Advanced Repair: Unhashed 2 asset files to restore SPA dynamic imports. Scanned 2 JS chunk(s). Patched Web Worker relative paths in 0 file(s). Patched CORS/Absolute origin paths in 0 file(s) to point to https://www.igloo.inc/."
+    },
+    {
+      "timestamp": "2026-06-07T13:41:52.357Z",
+      "report": "Ultimate Repair: Unhashed 0 assets. Crawled and auto-downloaded 0 missing dynamic dependencies from the live server. Scanned 2 JS chunk(s). Patched CORS paths in 0 file(s)."
+    }
+  ]
+}

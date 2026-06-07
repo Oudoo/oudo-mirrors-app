@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { url, folderName, deepCrawl } = await request.json();
+    const { url, folderName, deepCrawl, exportPath } = await request.json();
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
 
     const downloadedAssets = new Map<string, string>();
@@ -141,6 +141,25 @@ export async function POST(request: Request) {
     }
 
     await browser.close();
+
+    const metadata = {
+      originalUrl: url,
+      isDeepCrawl: !!deepCrawl,
+      subPagesCount,
+      assetsCount: downloadedAssets.size,
+      timestamp: new Date().toISOString()
+    };
+    fs.writeFileSync(path.join(mirrorDir, 'metadata.json'), JSON.stringify(metadata, null, 2));
+
+    if (exportPath) {
+      try {
+        const destPath = path.isAbsolute(exportPath) ? exportPath : path.resolve(process.cwd(), exportPath);
+        const finalExportPath = path.join(destPath, siteId);
+        fs.cpSync(mirrorDir, finalExportPath, { recursive: true });
+      } catch (err) {
+        console.error('Failed to export to custom path:', err);
+      }
+    }
 
     return NextResponse.json({ 
       success: true, 

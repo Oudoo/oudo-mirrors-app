@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import { Readable } from 'stream';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       read() {}
     });
 
-    const archive = archiver('zip', {
+    const archive = new ZipArchive({
       zlib: { level: 9 } // maximum compression
     });
 

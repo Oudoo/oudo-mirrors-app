@@ -2,13 +2,29 @@
 
 import { useState, useEffect } from "react";
 import gsap from "gsap";
-import { Download, ExternalLink, Globe, Loader2, Folder, Trash2, Archive, FolderOpen, Database, Clock, ArrowRight, Zap, Shield, FileText } from "lucide-react";
+import { Download, ExternalLink, Globe, Loader2, Folder, Trash2, Archive, FolderOpen, Database, Clock, ArrowRight, Zap, Shield, FileText, Edit2, Wrench } from "lucide-react";
+
+type PurgeRecord = {
+  timestamp: string;
+  report: string;
+};
+
+type ProjectMetadata = {
+  originalUrl: string;
+  isDeepCrawl: boolean;
+  subPagesCount: number;
+  assetsCount: number;
+  timestamp: string;
+  purgeHistory?: PurgeRecord[];
+  repairHistory?: PurgeRecord[];
+};
 
 type Project = {
   siteId: string;
   hasIndex: boolean;
   previewUrl: string;
   createdAt: string;
+  metadata?: ProjectMetadata;
 };
 
 export default function Home() {
@@ -16,9 +32,14 @@ export default function Home() {
   const [folderName, setFolderName] = useState("");
   const [isMirroring, setIsMirroring] = useState(false);
   const [deepCrawl, setDeepCrawl] = useState(false);
+  const [exportPath, setExportPath] = useState("");
   const [progress, setProgress] = useState(0);
   const [previewSite, setPreviewSite] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [tempUrl, setTempUrl] = useState("");
+  const [isSavingUrl, setIsSavingUrl] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [history, setHistory] = useState<Project[]>([]);
   const [error, setError] = useState("");
@@ -57,7 +78,7 @@ export default function Home() {
       const res = await fetch("/api/mirror", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, folderName, deepCrawl }),
+        body: JSON.stringify({ url, folderName, deepCrawl, exportPath }),
       });
 
       const data = await res.json();
@@ -91,6 +112,37 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       alert("✨ Success: " + data.message);
+      
+      await fetchHistory();
+      if (selectedProject && selectedProject.siteId === siteId) {
+        setSelectedProject({
+          ...selectedProject,
+          metadata: data.metadata
+        });
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  const handleRepair = async (siteId: string) => {
+    try {
+      const res = await fetch("/api/repair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert("✨ Success: " + data.message);
+      
+      await fetchHistory();
+      if (selectedProject && selectedProject.siteId === siteId) {
+        setSelectedProject({
+          ...selectedProject,
+          metadata: data.metadata
+        });
+      }
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -109,6 +161,32 @@ export default function Home() {
       });
     } catch (err) {
       console.error("Failed to reveal folder", err);
+    }
+  };
+
+  const handleSaveUrl = async () => {
+    if (!selectedProject || !tempUrl) return;
+    setIsSavingUrl(true);
+    try {
+      const res = await fetch("/api/metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId: selectedProject.siteId, originalUrl: tempUrl })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      const updatedProject = {
+        ...selectedProject,
+        metadata: data.metadata
+      };
+      setSelectedProject(updatedProject);
+      setHistory(history.map(p => p.siteId === selectedProject.siteId ? updatedProject : p));
+      setEditingUrl(false);
+    } catch (err: any) {
+      alert("Failed to save URL: " + err.message);
+    } finally {
+      setIsSavingUrl(false);
     }
   };
 
@@ -200,16 +278,33 @@ export default function Home() {
             />
           </div>
 
-          {/* Deep Crawl Toggle */}
-          <div className="flex items-center gap-3 px-2">
-            <button 
-              type="button"
-              onClick={() => setDeepCrawl(!deepCrawl)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${deepCrawl ? 'bg-cyan-500' : 'bg-slate-700'}`}
-            >
-              <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${deepCrawl ? 'translate-x-5' : 'translate-x-0'}`} />
-            </button>
-            <span className="text-sm font-medium text-slate-300">Deep Crawl (Follow internal links)</span>
+          {/* Advanced Options Row */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 px-2 mt-2">
+            {/* Deep Crawl Toggle */}
+            <div className="flex items-center gap-3">
+              <button 
+                type="button"
+                onClick={() => setDeepCrawl(!deepCrawl)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${deepCrawl ? 'bg-cyan-500' : 'bg-slate-700'}`}
+              >
+                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${deepCrawl ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+              <span className="text-sm font-medium text-slate-300">Deep Crawl</span>
+            </div>
+
+            <div className="hidden sm:block w-px h-4 bg-white/10 mx-2"></div>
+
+            {/* Export Path */}
+            <div className="flex-1 w-full flex items-center bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus-within:border-cyan-500/50 focus-within:bg-[#030712] transition-all">
+              <FolderOpen className="text-slate-400 w-4 h-4 mr-3 shrink-0" />
+              <input 
+                type="text" 
+                placeholder="Export Destination Path (Optional absolute path)" 
+                className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder-slate-400 w-full"
+                value={exportPath}
+                onChange={(e) => setExportPath(e.target.value)}
+              />
+            </div>
           </div>
           
           {error && (
@@ -257,7 +352,11 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {history.map((project) => (
-                <div key={project.siteId} className="bg-[#0f172a]/50 border border-white/10 rounded-3xl p-6 hover:bg-[#1e293b]/50 hover:border-white/20 transition-all group flex flex-col shadow-xl">
+                <div 
+                  key={project.siteId} 
+                  onClick={() => setSelectedProject(project)}
+                  className="bg-[#0f172a]/50 border border-white/10 rounded-3xl p-6 hover:bg-[#1e293b]/50 hover:border-white/20 transition-all group flex flex-col shadow-xl cursor-pointer"
+                >
                   <div className="flex justify-between items-start mb-6">
                     <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl group-hover:bg-indigo-500/20 transition-colors">
                       <Archive className="w-5 h-5" />
@@ -277,7 +376,7 @@ export default function Home() {
                   </p>
                   
                   {/* Action Buttons Grid */}
-                  <div className="pt-5 border-t border-white/5 grid grid-cols-2 md:grid-cols-3 gap-3 mt-auto w-full">
+                  <div className="pt-5 border-t border-white/5 grid grid-cols-2 md:grid-cols-3 gap-3 mt-auto w-full" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => setPreviewSite(project.previewUrl)}
                       className="flex items-center justify-center gap-2 text-sm font-medium py-3 px-2 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 rounded-xl transition-colors"
@@ -301,14 +400,21 @@ export default function Home() {
                     </button>
                     <button 
                       onClick={() => handlePurge(project.siteId)}
-                      className="flex items-center justify-center gap-2 text-sm font-medium py-3 px-2 bg-white/5 text-slate-300 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-colors md:col-span-2 lg:col-span-1"
+                      className="flex items-center justify-center gap-2 text-sm font-medium py-3 px-2 bg-white/5 text-slate-300 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-colors"
                       title="Purge & Clean"
                     >
                       <Trash2 className="w-4 h-4" /> Purge
                     </button>
                     <button 
+                      onClick={() => handleRepair(project.siteId)}
+                      className="flex items-center justify-center gap-2 text-sm font-medium py-3 px-2 bg-white/5 text-slate-300 hover:bg-orange-500/10 hover:text-orange-400 rounded-xl transition-colors"
+                      title="Fix Deployment Errors"
+                    >
+                      <Wrench className="w-4 h-4" /> Fix
+                    </button>
+                    <button 
                       onClick={() => handleReveal(project.siteId)}
-                      className="flex items-center justify-center gap-2 text-sm font-medium py-3 px-2 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white rounded-xl transition-colors md:col-span-1 lg:col-span-2"
+                      className="flex items-center justify-center gap-2 text-sm font-medium py-3 px-2 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white rounded-xl transition-colors"
                       title="Reveal in Finder"
                     >
                       <FolderOpen className="w-4 h-4" /> Reveal
@@ -320,6 +426,13 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="w-full py-8 mt-auto border-t border-white/[0.05] bg-[#030712]/40 backdrop-blur-sm relative z-10 flex items-center justify-center">
+        <p className="text-slate-500 text-sm font-medium tracking-wide">
+          Oudo Mirrors <span className="text-slate-600">(by Aura Systems)</span>
+        </p>
+      </footer>
 
       {/* In-App Previewer Modal */}
       {previewSite && (
@@ -339,6 +452,141 @@ export default function Home() {
               <div className={`bg-white rounded-md overflow-hidden transition-all duration-500 ease-in-out shadow-2xl ring-1 ring-white/10 ${previewMode === 'desktop' ? 'w-full h-full' : previewMode === 'tablet' ? 'w-[768px] h-[1024px]' : 'w-[375px] h-[812px]'}`}>
                 <iframe src={previewSite} className="w-full h-full border-0 bg-white" />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project Details Modal */}
+      {selectedProject && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#0f172a] border border-white/10 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 p-8">
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-2xl font-display font-semibold text-white truncate max-w-[80%]">
+                {selectedProject.siteId}
+              </h2>
+              <button onClick={() => setSelectedProject(null)} className="text-slate-400 hover:text-white p-2">
+                <span className="text-xl leading-none">&times;</span>
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 relative group">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-sm text-slate-400">Original URL</p>
+                  {!editingUrl && (
+                    <button 
+                      onClick={() => { setEditingUrl(true); setTempUrl(selectedProject.metadata?.originalUrl || ""); }} 
+                      className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Edit2 className="w-3 h-3" /> Edit
+                    </button>
+                  )}
+                </div>
+                
+                {editingUrl ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input 
+                      type="url" 
+                      value={tempUrl} 
+                      onChange={(e) => setTempUrl(e.target.value)} 
+                      placeholder="https://example.com"
+                      className="flex-1 bg-[#030712] border border-white/20 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
+                    />
+                    <button 
+                      onClick={handleSaveUrl}
+                      disabled={isSavingUrl || !tempUrl}
+                      className="bg-cyan-500 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-cyan-400 disabled:opacity-50"
+                    >
+                      {isSavingUrl ? "..." : "Save"}
+                    </button>
+                    <button onClick={() => setEditingUrl(false)} className="text-slate-400 hover:text-white px-2 text-sm">Cancel</button>
+                  </div>
+                ) : (
+                  <p className="text-white font-medium break-all">
+                    {selectedProject.metadata?.originalUrl ? (
+                      <a href={selectedProject.metadata.originalUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">
+                        {selectedProject.metadata.originalUrl}
+                      </a>
+                    ) : (
+                      <span className="text-slate-500">Unknown (Legacy Archive)</span>
+                    )}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                  <p className="text-sm text-slate-400 mb-1">Mirror Type</p>
+                  <div className="flex items-center gap-2">
+                    {selectedProject.metadata?.isDeepCrawl ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-500/10 text-cyan-400 text-sm font-medium border border-cyan-500/20">
+                        <Database className="w-4 h-4" /> Deep Crawl
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-500/10 text-slate-400 text-sm font-medium border border-slate-500/20">
+                        <FileText className="w-4 h-4" /> Shallow
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                  <p className="text-sm text-slate-400 mb-1">Assets Downloaded</p>
+                  <p className="text-white font-medium text-lg">
+                    {selectedProject.metadata?.assetsCount || "?"} items
+                  </p>
+                </div>
+              </div>
+
+              {selectedProject.metadata?.purgeHistory && selectedProject.metadata.purgeHistory.length > 0 && (
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                  <p className="text-sm text-slate-400 mb-3 flex items-center gap-2"><Shield className="w-4 h-4 text-emerald-400" /> Purge Reports</p>
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    {selectedProject.metadata.purgeHistory.map((purge, idx) => (
+                      <div key={idx} className="bg-[#030712]/50 p-3 rounded-xl border border-white/5">
+                        <p className="text-xs text-cyan-500 mb-1 font-mono">{new Date(purge.timestamp).toLocaleString()}</p>
+                        <p className="text-sm text-slate-300 leading-relaxed">{purge.report}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedProject.metadata?.repairHistory && selectedProject.metadata.repairHistory.length > 0 && (
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                  <p className="text-sm text-slate-400 mb-3 flex items-center gap-2"><Wrench className="w-4 h-4 text-orange-400" /> Repair Reports</p>
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    {selectedProject.metadata.repairHistory.map((repair, idx) => (
+                      <div key={idx} className="bg-[#030712]/50 p-3 rounded-xl border border-white/5">
+                        <p className="text-xs text-cyan-500 mb-1 font-mono">{new Date(repair.timestamp).toLocaleString()}</p>
+                        <p className="text-sm text-slate-300 leading-relaxed">{repair.report}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!selectedProject.metadata?.isDeepCrawl && (
+                <div className="mt-8 pt-6 border-t border-white/10">
+                  <button 
+                    onClick={() => {
+                      if (selectedProject.metadata?.originalUrl) {
+                        setUrl(selectedProject.metadata.originalUrl);
+                        setFolderName(selectedProject.siteId);
+                        setDeepCrawl(true);
+                        setSelectedProject(null);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      } else {
+                        alert("Cannot re-mirror: Original URL unknown.");
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white px-6 py-4 rounded-2xl font-display font-medium transition-all"
+                  >
+                    <Database className="w-5 h-5" />
+                    Re-Mirror with Deep Crawl
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
